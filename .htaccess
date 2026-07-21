@@ -1,0 +1,28 @@
+# BEGIN LSCACHE
+# END LSCACHE
+# BEGIN NON_LSCACHE
+# END NON_LSCACHE
+
+# BEGIN WordPress
+# ההוראות (שורות) בין "BEGIN WordPress" לבין "END WordPress" הן
+# נוצר באופן דינמי, ויש לשנות אותן רק באמצעות פילטרים של וורדפרס.
+# כל שינוי בהוראות בין סממנים אלה ידרס.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+
+# END WordPress
+# BEGIN LiteSpeed
+# ההוראות (שורות) בין "BEGIN LiteSpeed" לבין "END LiteSpeed" הן
+# נוצר באופן דינמי, ויש לשנות אותן רק באמצעות פילטרים של וורדפרס.
+# כל שינוי בהוראות בין סממנים אלה ידרס.
+<IfModule Litespeed>
+	SetEnv noabort 1
+</IfModule>
+# END LiteSpeed

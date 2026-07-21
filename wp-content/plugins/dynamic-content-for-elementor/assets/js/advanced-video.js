@@ -1,0 +1,81 @@
+(function ($) {
+	var WidgetElements_AdvancedVideoHandler = function ($scope, $) {
+		var elementSettings = dceGetElementSettings($scope);
+		var id_scope = $scope.attr("data-id");
+		var customControls = elementSettings.dce_video_custom_controls;
+
+		if (customControls) {
+			var videoType = elementSettings.video_type;
+			var autoplay = Boolean(elementSettings.autoplay);
+			var lightbox = Boolean(elementSettings.lightbox);
+			var muted = Boolean(elementSettings.mute);
+			var loop = Boolean(elementSettings.loop);
+			var controls = elementSettings.dce_video_controls;
+			var captionsOnStart =
+				elementSettings.dce_captions_on_start === "yes";
+			var captionsLang = elementSettings.dce_captions_lang;
+
+			var generatePlyrVideo = function () {
+				var videoContainer = ".elementor-element-" + id_scope;
+				var videoSelector = videoContainer + " .elementor-wrapper";
+				if (videoType == "hosted") {
+	
+					var videoElement = $scope.find('.elementor-video')[0];
+					if (videoElement) {
+						videoSelector = videoElement;
+					}
+				}
+
+				// Lightbox
+				if (lightbox) {
+					videoContainer = "#elementor-lightbox-" + id_scope;
+					videoSelector =
+						videoContainer + " .elementor-video-container > div";
+				}
+				const plyr = new Plyr(videoSelector, {
+					controls: controls,
+					autoplay: autoplay,
+					muted: muted,
+					captions: {
+						active: captionsOnStart,
+						language: captionsLang,
+					},
+					loop: { active: loop },
+					disableContextMenu: false,
+					hideControls: false,
+				});
+				$scope.data("dce-plyr", plyr);
+				$scope.addClass("dce-video-plyr");
+			};
+
+			if ($scope.find(".elementor-custom-embed-image-overlay").length) {
+				$scope.on(
+					"mouseup",
+					".elementor-custom-embed-image-overlay",
+					function () {
+						if (lightbox) {
+							setTimeout(function () {
+								generatePlyrVideo();
+							}, 1000);
+						} else {
+							setTimeout(function () {
+								generatePlyrVideo();
+							}, 400);
+						}
+					},
+				);
+			} else {
+				setTimeout(function () {
+					generatePlyrVideo();
+				}, 1000);
+			}
+		}
+	};
+
+	$(window).on("elementor/frontend/init", function () {
+		elementorFrontend.hooks.addAction(
+			"frontend/element_ready/video.default",
+			WidgetElements_AdvancedVideoHandler,
+		);
+	});
+})(jQuery);

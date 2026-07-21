@@ -1,0 +1,14 @@
+.dce-animated-text {
+  font-kerning: none;
+  -webkit-text-rendering: optimizeSpeed;
+  text-rendering: optimizeSpeed;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+.dce-animated-text .dce-split-char,
+.dce-animated-text .dce-split-word,
+.dce-animated-text .dce-split-line {
+  display: inline-block;
+  white-space: pre;
+}

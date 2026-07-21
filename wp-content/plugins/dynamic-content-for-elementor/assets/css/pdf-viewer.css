@@ -1,0 +1,20 @@
+.dce-pdf-controls {
+  display: flex;
+  flex-wrap: wrap;
+}
+.dce-pdf-renderer {
+  max-width: 100%;
+  height: auto;
+}
+.dce-pdf-navigation-controls button i,
+.dce-pdf-navigation-controls button svg {
+  vertical-align: middle;
+}
+.dce-pdf-go-previous i,
+.dce-pdf-go-previous svg {
+  margin-inline-end: 0.3em;
+}
+.dce-pdf-go-next i,
+.dce-pdf-go-next svg {
+  margin-inline-start: 0.3em;
+}

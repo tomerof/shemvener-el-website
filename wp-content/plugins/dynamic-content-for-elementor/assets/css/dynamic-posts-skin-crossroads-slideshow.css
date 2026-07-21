@@ -1,0 +1,146 @@
+.dce-skin-crossroadsslideshow {
+	position: relative;
+	height: 100vh;
+	overflow: hidden;
+	width: 100%;
+}
+
+.dce-skin-crossroadsslideshow .swiper {
+	width: 110%;
+	margin-left: -5%;
+	transform: rotate(-13deg);
+	transform-origin: center center;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item {
+	position: relative;
+	transition: all 0.5s ease;
+	width: 100%;
+	transform-style: preserve-3d;
+	transform: rotate(0deg);
+	transform-origin: center center;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--center,
+.dce-skin-crossroadsslideshow .dce-grid__item--left,
+.dce-skin-crossroadsslideshow .dce-grid__item--right {
+	opacity: 1;
+}
+
+.dce-skin-crossroadsslideshow .dce-post-image {
+	height: 60vh;
+	width: 95%;
+	position: relative;
+	margin: 0 auto;
+	transform-style: preserve-3d;
+	overflow: visible;
+}
+
+.dce-skin-crossroadsslideshow .dce-img-wrap {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.dce-skin-crossroadsslideshow .dce-img-background-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+	z-index: 1;
+	pointer-events: none;
+}
+
+.dce-skin-crossroadsslideshow .dce-img-el {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	width: 100%;
+	height: 100%;
+	background-size: cover;
+	background-position: center;
+	transform: translateZ(1px);
+}
+
+.dce-skin-crossroadsslideshow .dce-post-title {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(13deg);
+	color: #fff;
+	font-size: 3rem;
+	text-align: center;
+	width: calc(100% + 80px);
+	z-index: 2;
+	margin: 0;
+	padding: 0;
+}
+
+.dce-skin-crossroadsslideshow .swiper-slide {
+	transition: all 0.5s ease;
+	transform-style: preserve-3d;
+	overflow: visible !important;
+	padding: 60px 0 100px;
+	margin-bottom: 20px;
+	transform: translateY(calc(13vh * var(--slide-offset, 0)));
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--left {
+	cursor: url("data:image/svg+xml,%3Csvg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' x='0px' y='0px' width='61px' height='44px' viewBox='0 0 61 44' style='enable-background:new 0 0 61 44;' xml:space='preserve'%3E %3Cpath d='M.613 21.671L21.584.7l5.642 5.642-11.74 11.74H60.45v7.978H15.487l11.74 11.739-5.643 5.642L.613 22.469a.57.57 0 0 1 0-.798z'/%3E %3C/svg%3E") 30 22, sw-resize;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--right {
+	cursor: url("data:image/svg+xml,%3Csvg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' x='0px' y='0px' width='61px' height='44px' viewBox='0 0 61 44' style='enable-background:new 0 0 61 44;' xml:space='preserve'%3E %3Cpath d='M60.287 21.671L39.316.7l-5.642 5.642 11.74 11.74H.45v7.978h44.963l-11.74 11.739 5.643 5.642 20.971-20.972a.57.57 0 0 0 0-.798z'/%3E %3C/svg%3E") 30 22, ne-resize;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--center {
+	cursor: url("data:image/svg+xml,%3Csvg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' x='0px' y='0px' width='52px' height='52px' viewBox='0 0 52 52' style='enable-background:new 0 0 52 52;' xml:space='preserve'%3E %3Cpath d='M29.889 30.05l-.036 21.361c-.222.213-7.654.213-7.876 0l-.007-21.358-21.52.007v-7.978l21.518.036L21.96.571h7.978l-.037 21.56 21.388.037c.213.222.213 7.654 0 7.876l-21.401.007z'/%3E %3C/svg%3E") 26 26, pointer;
+}
+
+.dce-skin-crossroadsslideshow .swiper-button-next,
+.dce-skin-crossroadsslideshow .swiper-button-prev {
+	display: none;
+}
+
+.dce-skin-crossroadsslideshow .dce-post-link {
+	display: block;
+	text-decoration: none;
+	cursor: inherit;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--left *,
+.dce-skin-crossroadsslideshow .dce-grid__item--right *,
+.dce-skin-crossroadsslideshow .dce-grid__item--center * {
+	cursor: inherit;
+}
+
+.dce-skin-crossroadsslideshow .dce-grid__item--left .dce-post-link,
+.dce-skin-crossroadsslideshow .dce-grid__item--right .dce-post-link {
+	pointer-events: none;
+}
+
+.dce-skin-crossroadsslideshow .dce-number {
+	transform: rotate(13deg);
+	display: block;
+	font-size: 4.25vw;
+	font-weight: 700;
+	color: transparent;
+	margin-bottom: 0.5rem;
+	margin-left: 0;
+	line-height: 1;
+	-webkit-text-stroke: 1.5px #000;
+	text-stroke: 1.5px #000;
+	-webkit-text-fill-color: transparent;
+	text-fill-color: transparent;
+}
+
+@media screen and (max-width: 53em) {
+	.dce-skin-crossroadsslideshow .dce-number {
+		font-size: 2rem;
+	}
+}

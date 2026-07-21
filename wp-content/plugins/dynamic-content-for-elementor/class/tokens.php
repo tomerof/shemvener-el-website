@@ -1,0 +1,1809 @@
+<?php
+
+// SPDX-FileCopyrightText: 2018-2026 Ovation S.r.l. <help@dynamic.ooo>
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Example Option Tokens Grammar:
+// [option:optName:arrayKey1:arrayKey2...|filter1|filter2...?fallbackString]
+namespace DynamicContentForElementor;
+
+use DynamicContentForElementor\Core\Upgrade\Manager as Upgrade_Manager;
+if (!\defined('ABSPATH')) {
+    exit;
+}
+class FiltersParser
+{
+    private $str;
+    private $current = 0;
+    private $captures = [];
+    private $filters = [];
+    public function __construct($str)
+    {
+        $this->str = $str;
+    }
+    private function peek()
+    {
+        if ($this->is_at_end()) {
+            return 'EOF';
+        }
+        return $this->str[$this->current];
+    }
+    private function match($c)
+    {
+        if ($this->is_at_end()) {
+            return \false;
+        }
+        if ($this->str[$this->current] === $c) {
+            ++$this->current;
+            return \true;
+        }
+        return \false;
+    }
+    private function match_regex($regex)
+    {
+        $matches = [];
+        // regex should always be anchored at the beginning of the string
+        $regex = $regex[0] . '\\G' . \substr($regex, 1);
+        if (!\preg_match($regex, $this->str, $matches, 0, $this->current)) {
+            return \false;
+        }
+        $this->current += \strlen($matches[0]);
+        if (isset($matches[1])) {
+            return $matches[1];
+        }
+        return \true;
+    }
+    private function is_at_end()
+    {
+        return $this->current >= \strlen($this->str);
+    }
+    private function advance()
+    {
+        return $this->str[$this->current++];
+    }
+    private function quoted_string($quote_ch)
+    {
+        $esc = \false;
+        $qstr = '';
+        while (1) {
+            if ($this->is_at_end()) {
+                return \false;
+            }
+            $c = $this->advance();
+            if ($esc) {
+                $qstr .= $c;
+                $esc = \false;
+            } elseif ('\\' === $c) {
+                $esc = \true;
+            } elseif ($c === $quote_ch) {
+                return $qstr;
+            } else {
+                $qstr .= $c;
+            }
+        }
+    }
+    private function fn_name()
+    {
+        // The following is the precise regex for a function name.
+        $name = $this->match_regex('/\\s*([a-zA-Z_\\x80-\\xff][a-zA-Z0-9_\\x80-\\xff]*)\\s*/');
+        if ($name === \false) {
+            return 'error';
+        }
+        if ($this->match('|')) {
+            $this->filters[] = [$name, []];
+            // no arguments.
+            return 'fn_name';
+        } elseif ($this->match('(')) {
+            $this->captures[] = $name;
+            return 'fn_arg';
+        } elseif ($this->is_at_end()) {
+            $this->filters[] = [$name, []];
+            // no arguments.
+            return 'done';
+        } else {
+            return 'error';
+        }
+    }
+    private function skip_spaces()
+    {
+        $this->match_regex('/\\s*/');
+    }
+    private function fn_arg()
+    {
+        $this->skip_spaces();
+        $quote_ch = \false;
+        if ($this->match('"')) {
+            $quote_ch = '"';
+        } elseif ($this->match("'")) {
+            $quote_ch = "'";
+        }
+        if ($quote_ch) {
+            $qstr = $this->quoted_string($quote_ch);
+            if ($qstr === \false) {
+                return 'error';
+            }
+            $this->captures[] = $qstr;
+        } else {
+            $arg = $this->match_regex('/([^\\s,\\)]+)\\s*/');
+            if ($arg === \false) {
+                return 'error';
+            }
+            $this->captures[] = $arg;
+        }
+        if ($this->match(',')) {
+            return 'fn_arg';
+        } elseif ($this->match(')')) {
+            $fn_name = \array_shift($this->captures);
+            $this->filters[] = [$fn_name, $this->captures];
+            $this->captures = [];
+            if ($this->match('|')) {
+                return 'fn_name';
+            } elseif ($this->is_at_end()) {
+                return 'done';
+            } else {
+                return 'error';
+            }
+        } else {
+            return 'error';
+        }
+    }
+    public function parse()
+    {
+        $nf = 'fn_name';
+        while (\true) {
+            $nf = $this->{$nf}();
+            if (!$nf) {
+                return \false;
+            }
+            if ('error' === $nf) {
+                return \false;
+            }
+            if ('done' === $nf) {
+                return $this->filters;
+            }
+        }
+    }
+}
+/**
+ * Tokens Class
+ */
+class Tokens
+{
+    const OPTIONS_WHITELIST = ['siteurl' => \true, 'home' => \true, 'blogname' => \true, 'blogdescription' => \true, 'start_of_week' => \true, 'posts_per_page' => \true, 'date_format' => \true, 'time_format' => \true, 'timezone_string' => \true, 'sticky_posts' => \true, 'elementor_version' => \true, 'www_user_roles' => \true, 'thumbnail_size_h' => \true, 'thumbnail_size_w' => \true, 'users_can_register' => \true, 'avatar_default' => \true];
+    const DEFAULT_FILTERS_WHITELIST = ['absint' => \true, 'array_keys' => \true, 'ceil' => \true, 'count' => \true, 'current_time' => \true, 'date' => \true, 'date_i18n' => \true, 'do_shortcode' => \true, 'empty' => \true, 'end' => \true, 'esc_attr' => \true, 'esc_html' => \true, 'esc_js' => \true, 'esc_textarea' => \true, 'esc_url' => \true, 'esc_url_raw' => \true, 'explode' => \true, 'filter_var' => \true, 'floatval' => \true, 'floor' => \true, 'get_avatar' => \true, 'get_avatar_url' => \true, 'get_cat_ID' => \true, 'get_cat_name' => \true, 'get_categories' => \true, 'get_category' => \true, 'get_category_by_path' => \true, 'get_category_by_slug' => \true, 'get_date_from_gmt' => \true, 'get_permalink' => \true, 'get_post_field' => \true, 'get_post_format' => \true, 'get_post_status' => \true, 'get_post_type' => \true, 'get_tag' => \true, 'get_tags' => \true, 'get_taxonomies' => \true, 'get_taxonomy' => \true, 'get_term' => \true, 'get_term_by' => \true, 'get_the_author' => \true, 'get_the_category' => \true, 'get_the_category_by_ID' => \true, 'get_the_content' => \true, 'get_the_date' => \true, 'get_the_excerpt' => \true, 'get_the_ID' => \true, 'get_the_post_thumbnail' => \true, 'get_the_time' => \true, 'get_the_title' => \true, 'htmlentities2' => \true, 'implode' => \true, 'intval' => \true, 'json_decode' => \true, 'json_encode' => \true, 'max' => \true, 'md5' => \true, 'microtime' => \true, 'min' => \true, 'nl2br' => \true, 'rand' => \true, 'reset' => \true, 'round' => \true, 'rtrim' => \true, 'strsub' => \true, 'sanitize_email' => \true, 'sanitize_file_name' => \true, 'sanitize_html_class' => \true, 'sanitize_key' => \true, 'sanitize_mime_type' => \true, 'sanitize_option' => \true, 'sanitize_text_field' => \true, 'sanitize_title' => \true, 'sanitize_user' => \true, 'single_cat_title' => \true, 'single_tag_title' => \true, 'size_format' => \true, 'str_replace' => \true, 'str_shuffle' => \true, 'stripslashes' => \true, 'strlen' => \true, 'strpost' => \true, 'strrev' => \true, 'strtolower' => \true, 'strtotime' => \true, 'strtoupper' => \true, 'strtr' => \true, 'substr' => \true, 'the_category' => \true, 'the_ID' => \true, 'the_permalink' => \true, 'time' => \true, 'trim' => \true, 'ucwords' => \true, 'uniqid' => \true, 'urlencode' => \true, 'wordwrap' => \true, 'wp_count_posts' => \true, 'wp_filter_kses' => \true, 'wp_filter_nohtml_kses' => \true, 'wp_filter_post_kses' => \true, 'wp_get_attachment_image' => \true, 'wp_get_attachment_image_src' => \true, 'wp_get_attachment_link' => \true, 'wp_get_attachment_metadata' => \true, 'wp_get_attachment_thumb_file' => \true, 'wp_get_attachment_thumb_url' => \true, 'wp_get_attachment_url' => \true, 'wp_kses' => \true, 'wp_kses_attr' => \true, 'wp_kses_post' => \true, 'wp_kses_post_deep' => \true, 'wp_list_pluck' => \true, 'wp_logout_url' => \true, 'wp_trim_words' => \true, 'wpautop' => \true];
+    /**
+     * @var ?array<string, boolean>
+     */
+    private static $filters_whitelist;
+    private static $filters_blacklist = ['__halt_compiler' => \true, 'apache_child_terminate' => \true, 'array_filter' => \true, 'array_map' => \true, 'array_reduce' => \true, 'array_udiff' => \true, 'array_uintersect' => \true, 'array_walk' => \true, 'array_walk_recursive' => \true, 'assert' => \true, 'base64_decode' => \true, 'bzdecompress' => \true, 'call_user_func' => \true, 'call_user_func_array' => \true, 'call_user_method' => \true, 'call_user_method_array' => \true, 'chmod' => \true, 'chown' => \true, 'convert_uudecode' => \true, 'copy' => \true, 'create_function' => \true, 'curl_exec' => \true, 'curl_init' => \true, 'curl_multi_exec' => \true, 'curl_setopt' => \true, 'dl' => \true, 'dns_get_record' => \true, 'escapeshellarg' => \true, 'escapeshellcmd' => \true, 'eval' => \true, 'exec' => \true, 'file' => \true, 'file_get_contents' => \true, 'file_put_contents' => \true, 'fopen' => \true, 'forward_static_call' => \true, 'forward_static_call_array' => \true, 'fputcsv' => \true, 'fputs' => \true, 'fread' => \true, 'fsockopen' => \true, 'fwrite' => \true, 'get_cfg_var' => \true, 'get_defined_constants' => \true, 'get_defined_functions' => \true, 'get_defined_vars' => \true, 'get_headers' => \true, 'getcwd' => \true, 'getenv' => \true, 'gethostbyname' => \true, 'getmygid' => \true, 'getmypid' => \true, 'getmyuid' => \true, 'glob' => \true, 'gzdecode' => \true, 'gzinflate' => \true, 'gzuncompress' => \true, 'header' => \true, 'highlight_file' => \true, 'include' => \true, 'include_once' => \true, 'ini_get' => \true, 'ini_get_all' => \true, 'ini_set' => \true, 'invokeargs' => \true, 'iterator_apply' => \true, 'mail' => \true, 'mb_ereg_replace_callback' => \true, 'mb_send_mail' => \true, 'mkdir' => \true, 'move_uploaded_file' => \true, 'ob_start' => \true, 'opendir' => \true, 'parse_ini_file' => \true, 'parse_ini_string' => \true, 'passthru' => \true, 'pcntl_exec' => \true, 'pcntl_fork' => \true, 'pfsockopen' => \true, 'php_uname' => \true, 'phpinfo' => \true, 'popen' => \true, 'posix_getcwd' => \true, 'posix_getpwuid' => \true, 'posix_getuid' => \true, 'posix_uname' => \true, 'preg_replace' => \true, 'preg_replace_callback' => \true, 'preg_replace_callback_array' => \true, 'proc_close' => \true, 'proc_get_status' => \true, 'proc_nice' => \true, 'proc_open' => \true, 'proc_terminate' => \true, 'putenv' => \true, 'readfile' => \true, 'ReflectionClass' => \true, 'ReflectionFunction' => \true, 'ReflectionMethod' => \true, 'register_shutdown_function' => \true, 'register_tick_function' => \true, 'rename' => \true, 'require' => \true, 'require_once' => \true, 'rmdir' => \true, 'scandir' => \true, 'set_include_path' => \true, 'setcookie' => \true, 'setrawcookie' => \true, 'shell_exec' => \true, 'show_source' => \true, 'str_rot13' => \true, 'stream_socket_client' => \true, 'stream_socket_server' => \true, 'symlink' => \true, 'sys_get_temp_dir' => \true, 'system' => \true, 'tempnam' => \true, 'tmpfile' => \true, 'touch' => \true, 'uasort' => \true, 'uksort' => \true, 'unlink' => \true, 'unserialize' => \true, 'usort' => \true, 'wp_remote_fopen' => \true, 'wp_remote_get' => \true, 'wp_remote_head' => \true, 'wp_remote_post' => \true, 'wp_remote_request' => \true, 'wp_safe_remote_get' => \true, 'wp_safe_remote_head' => \true, 'wp_safe_remote_post' => \true, 'wp_safe_remote_request' => \true, 'zlib_decode' => \true];
+    /**
+     * @return string
+     */
+    public static function status_with_unsaved_option()
+    {
+        $history = Upgrade_Manager::get_installs_history();
+        if (empty($history)) {
+            return 'disable';
+        } else {
+            $first = \key($history);
+            $first = \preg_replace('/-(beta|dev|rc)\\d*$/', '', $first);
+            return \version_compare($first, '3.0.0', '>=') ? 'disable' : 'enable';
+        }
+    }
+    /**
+     * @return bool
+     */
+    public static function is_detector_enabled()
+    {
+        return get_option('dce_tokens_detector_status', 'disable') === 'enable';
+    }
+    /**
+     * @return boolean
+     */
+    public static function is_active()
+    {
+        $option = get_option('dce_tokens_status');
+        if ($option === \false) {
+            $option = self::status_with_unsaved_option();
+            $hook = 'dce_auto_save_tokens_status';
+            if (!wp_next_scheduled($hook)) {
+                wp_schedule_single_event(\time() + 15 * 60, $hook);
+            }
+            add_action($hook, function () use($option) {
+                update_option('dce_tokens_status', $option);
+            });
+        }
+        return $option === 'enable';
+    }
+    /**
+     * @return array<string,mixed>
+     */
+    public static function get_tokens_list()
+    {
+        return ['form' => ['callback' => 'replace_form_tokens'], 'system' => ['callback' => 'replace_system_tokens'], 'date' => ['callback' => 'replace_date_tokens'], 'author' => ['callback' => 'replace_author_tokens'], 'user' => ['callback' => 'replace_user_tokens'], 'post' => ['callback' => 'replace_post_tokens'], 'term' => ['callback' => 'replace_term_tokens'], 'option' => ['callback' => 'replace_option_tokens'], 'wp_query' => ['callback' => 'replace_wp_query_tokens'], 'query' => ['callback' => 'replace_query_tokens'], 'acf' => ['callback' => 'replace_acf_tokens'], 'product' => ['callback' => 'replace_product_tokens'], 'expr' => ['callback' => 'replace_expr_tokens']];
+    }
+    /**
+     * @return array<string, string>
+     */
+    public static function get_tokens_options()
+    {
+        $options = [];
+        foreach (self::get_tokens_list() as $key => $token) {
+            $options[$key] = $key === 'post' ? 'post, jet, metabox' : $key;
+        }
+        return $options;
+    }
+    public static $data = \false;
+    /**
+     * Temporary storage for tokens detected during current request
+     *
+     * @var array<string, array<string,mixed>>
+     */
+    private static $detected_tokens_buffer = [];
+    /**
+     * Page context captured when tokens are first detected
+     * Stored early because $wp_query may be reset by shutdown time
+     *
+     * @var array{post_id: int, post_type: string}|null
+     */
+    private static $page_context = null;
+    /**
+     * Capture current page context (post_id and post_type)
+     * Must be called while $wp_query is still valid
+     *
+     * @return void
+     */
+    private static function capture_page_context()
+    {
+        // Only capture once per request
+        if (self::$page_context !== null) {
+            return;
+        }
+        $post_id = 0;
+        $post_type = '';
+        // For AJAX requests, try to get post_id from request
+        if (wp_doing_ajax() && !empty($_REQUEST['post_id'])) {
+            $post_id = absint($_REQUEST['post_id']);
+            if ($post_id > 0) {
+                $post_type = get_post_type($post_id);
+                if ($post_type === \false) {
+                    $post_type = '';
+                }
+            }
+        } elseif (wp_doing_ajax() && !empty($_REQUEST['editor_post_id'])) {
+            // Elementor editor uses 'editor_post_id'
+            $post_id = absint($_REQUEST['editor_post_id']);
+            if ($post_id > 0) {
+                $post_type = get_post_type($post_id);
+                if ($post_type === \false) {
+                    $post_type = '';
+                }
+            }
+        } elseif (wp_doing_ajax() && !empty($_REQUEST['post'])) {
+            // Some AJAX requests use 'post' instead of 'post_id'
+            $post_id = absint($_REQUEST['post']);
+            if ($post_id > 0) {
+                $post_type = get_post_type($post_id);
+                if ($post_type === \false) {
+                    $post_type = '';
+                }
+            }
+        } elseif (is_singular()) {
+            $post_id = get_the_ID();
+            if ($post_id) {
+                $post_type = get_post_type($post_id);
+                if ($post_type === \false) {
+                    $post_type = '';
+                }
+            } else {
+                $post_id = 0;
+            }
+        } elseif (is_home()) {
+            // Try to get the posts page ID
+            $posts_page_id = get_option('page_for_posts');
+            if ($posts_page_id) {
+                $post_id = (int) $posts_page_id;
+                $post_type = 'page';
+            }
+        }
+        self::$page_context = ['post_id' => $post_id, 'post_type' => $post_type];
+    }
+    /**
+     * Track token usage for detection
+     *
+     * @param string $text Text content containing tokens
+     * @return void
+     */
+    public static function track_token_usage($text)
+    {
+        if (empty($text) || !\is_string($text)) {
+            return;
+        }
+        // Capture page context early while $wp_query is still valid
+        self::capture_page_context();
+        // Strip HTML tags to keep only text content
+        $clean_text = \strip_tags($text);
+        // Skip empty or whitespace-only content
+        if (\trim($clean_text) === '') {
+            return;
+        }
+        // Truncate for storage (max 200 characters - enough to identify context)
+        // Use mb_* functions to properly handle multibyte UTF-8 characters
+        $is_truncated = \mb_strlen($clean_text, 'UTF-8') > 200;
+        $content = $is_truncated ? \mb_substr($clean_text, 0, 200, 'UTF-8') . '...' : $clean_text;
+        $token_key = \md5($clean_text);
+        // Use clean text hash as unique key
+        // Store in buffer for batch processing
+        if (!isset(self::$detected_tokens_buffer[$token_key])) {
+            self::$detected_tokens_buffer[$token_key] = ['content' => $content, 'is_truncated' => $is_truncated];
+        }
+        // Register shutdown function to save all tokens at once
+        static $shutdown_registered = \false;
+        if (!$shutdown_registered) {
+            add_action('shutdown', [__CLASS__, 'save_detected_tokens'], 10);
+            $shutdown_registered = \true;
+        }
+    }
+    /**
+     * Lock expiration time in seconds
+     */
+    private const LOCK_EXPIRATION = 30;
+    /**
+     * Acquire a lock for token tracking operations
+     * Uses add_option() which is atomic - returns false if option already exists
+     *
+     * @return bool True if lock acquired, false otherwise.
+     */
+    private static function acquire_tokens_lock()
+    {
+        $lock_name = 'dce_tokens_tracking_lock';
+        $lock_value = wp_generate_uuid4();
+        $expiration = \time() + self::LOCK_EXPIRATION;
+        // Check if there's an existing lock that has expired
+        $existing_lock = get_option($lock_name);
+        if (\is_array($existing_lock) && isset($existing_lock['expires'])) {
+            if ($existing_lock['expires'] < \time()) {
+                // Lock has expired, remove it so we can acquire a new one
+                delete_option($lock_name);
+            }
+        }
+        // Try to add the option atomically - fails if it already exists
+        // This is the key: add_option uses INSERT which fails on duplicate
+        $lock_data = ['value' => $lock_value, 'expires' => $expiration];
+        // add_option returns false if option already exists (atomic operation)
+        $acquired = add_option($lock_name, $lock_data, '', 'no');
+        if ($acquired) {
+            self::$lock_value = $lock_value;
+            return \true;
+        }
+        return \false;
+    }
+    /**
+     * Release the token tracking lock
+     *
+     * @return void
+     */
+    private static function release_tokens_lock()
+    {
+        $lock_name = 'dce_tokens_tracking_lock';
+        // Only release if we own the lock
+        if (isset(self::$lock_value)) {
+            $existing_lock = get_option($lock_name);
+            if (\is_array($existing_lock) && isset($existing_lock['value']) && $existing_lock['value'] === self::$lock_value) {
+                delete_option($lock_name);
+            }
+        }
+        self::$lock_value = null;
+    }
+    /**
+     * Current lock value (to verify ownership)
+     *
+     * @var string|null
+     */
+    private static $lock_value = null;
+    /**
+     * Save all detected tokens from buffer to database
+     * Called on shutdown hook to batch all tracking into single DB write
+     *
+     * @return void
+     */
+    public static function save_detected_tokens()
+    {
+        if (empty(self::$detected_tokens_buffer)) {
+            return;
+        }
+        // Check if detector is enabled
+        if (!self::is_detector_enabled()) {
+            self::$detected_tokens_buffer = [];
+            return;
+        }
+        // Acquire lock to prevent race conditions during concurrent requests
+        if (!self::acquire_tokens_lock()) {
+            // Could not acquire lock - another process is updating
+            // Clear buffer to avoid memory issues, data will be tracked on next page view
+            self::$detected_tokens_buffer = [];
+            return;
+        }
+        // Get current detected tokens AFTER acquiring lock to ensure we have latest data
+        $detected_tokens = get_option('dce_tokens_detected', [], \false);
+        if (!\is_array($detected_tokens)) {
+            $detected_tokens = [];
+        }
+        $current_time = current_time('mysql');
+        // Use page context captured earlier (when $wp_query was still valid)
+        // This avoids issues with conditional tags during shutdown
+        $post_id = self::$page_context['post_id'] ?? 0;
+        $post_type = self::$page_context['post_type'] ?? '';
+        // Skip tracking if we can't identify a post
+        if (!$post_id) {
+            self::release_tokens_lock();
+            self::$detected_tokens_buffer = [];
+            return;
+        }
+        $page_key = 'post_' . $post_id;
+        // Maximum entries limit to prevent database bloat
+        $max_entries = 150;
+        $current_count = \count($detected_tokens);
+        $has_updates = \false;
+        // Rate limiting: 5 minutes between updates for same token
+        $rate_limit_seconds = 300;
+        // 5 minutes
+        $current_timestamp = \strtotime($current_time);
+        // Merge buffer into detected tokens
+        foreach (self::$detected_tokens_buffer as $token_key => $buffer_data) {
+            // Check if we've reached the maximum entries limit for new tokens
+            if (!isset($detected_tokens[$token_key])) {
+                if ($current_count >= $max_entries) {
+                    // Set flag to show admin notice
+                    update_option('dce_tokens_detector_limit_reached', \true, \false);
+                    continue;
+                    // Skip this token
+                }
+                // Add new token
+                $detected_tokens[$token_key] = ['content' => $buffer_data['content'], 'is_truncated' => $buffer_data['is_truncated'], 'first_seen' => $current_time, 'last_seen' => $current_time, 'pages' => []];
+                ++$current_count;
+                $has_updates = \true;
+            } else {
+                // Rate limiting: only update last_seen if more than 5 minutes ago
+                $last_seen_timestamp = \strtotime($detected_tokens[$token_key]['last_seen']);
+                // Handle corrupted timestamps: if strtotime fails, treat as very old and allow update
+                $should_update_timestamp = $last_seen_timestamp === \false || $current_timestamp - $last_seen_timestamp >= $rate_limit_seconds;
+                if ($should_update_timestamp) {
+                    $detected_tokens[$token_key]['last_seen'] = $current_time;
+                    $has_updates = \true;
+                }
+            }
+            // Track the page (without counter) - always track pages regardless of rate limiting
+            if (!isset($detected_tokens[$token_key]['pages'][$page_key])) {
+                $detected_tokens[$token_key]['pages'][$page_key] = ['post_id' => $post_id, 'post_type' => $post_type];
+                $has_updates = \true;
+            }
+        }
+        // Only save if we have actual updates (reduces DB writes)
+        if ($has_updates) {
+            update_option('dce_tokens_detected', $detected_tokens, \false);
+        }
+        // Release lock before clearing buffer
+        self::release_tokens_lock();
+        // Clear buffer
+        self::$detected_tokens_buffer = [];
+    }
+    public static function do_tokens($text = '')
+    {
+        if (!self::is_active()) {
+            return $text;
+        }
+        // Track text content containing tokens
+        self::track_token_usage($text);
+        $tokens = self::get_tokens_list();
+        $active_tokens = get_option('dce_active_tokens', \array_keys($tokens));
+        if (!\is_array($active_tokens)) {
+            // not clear how can this end up not being an array at this point,
+            // but it has happened.
+            $active_tokens = \array_keys($tokens);
+        }
+        foreach ($tokens as $key => $token) {
+            if (!\in_array($key, $active_tokens, \true)) {
+                continue;
+            }
+            if (!\is_string($text)) {
+                return $text;
+            }
+            $text = self::{$token['callback']}($text);
+        }
+        return $text;
+    }
+    public static function replace_tokens_with_his_name($text, $var_name)
+    {
+        $parts = \explode('[' . $var_name, $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    $subfield = '';
+                    if (\substr($metaParams, 0, 1) == ':') {
+                        $metaParams = \substr($metaParams, 1);
+                        $subfield = ':';
+                    }
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $temp_part = \reset($more_parts);
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    $metaKey = \explode(':', $metaName);
+                    $field = \reset($metaKey);
+                    $replaceValue = $field;
+                    $text = \str_replace('[' . $var_name . $subfield . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_expr_tokens($text)
+    {
+        $parts = \explode('[expr:', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $metaKey = \reset($metaKey);
+                    try {
+                        $replaceValue = \DynamicOOOS\jlawrence\eos\Parser::solve($metaKey);
+                    } catch (\Throwable $e) {
+                        $replaceValue = esc_html__('Expression Token Error', 'dynamic-content-for-elementor');
+                    }
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts));
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[expr:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_form_tokens($text)
+    {
+        global $dce_form;
+        $text = \str_replace('[form:pdf]', '<!--[dce_form_pdf:attachment]-->', $text);
+        // pdf mail attachment
+        if (\is_null($dce_form)) {
+            if (\Elementor\Plugin::$instance->editor->is_edit_mode()) {
+                $text = self::replace_tokens_with_his_name($text, 'form');
+            }
+        } else {
+            $text = self::replace_content_shortcodes($text, '[form:all-fields]', $dce_form);
+            $text = self::replace_content_shortcodes($text, '[form:all-fields|!empty]', $dce_form, '<br>', \false);
+            $text = self::replace_var_tokens($text, 'form', $dce_form);
+            $text = \DynamicContentForElementor\Helper::replace_setting_shortcodes($text, $dce_form);
+        }
+        return $text;
+    }
+    public static function replace_content_shortcodes($text, $all_fields_shortcode, $record, $line_break = '<br>', $show_empty = \true)
+    {
+        if (\false !== \strpos($text, $all_fields_shortcode)) {
+            $fields = '';
+            foreach ($record as $fkey => $fvalue) {
+                if (!$show_empty && empty($fvalue)) {
+                    continue;
+                }
+                if (\is_array($fvalue)) {
+                    switch ($fkey) {
+                        case 'pdf':
+                            $fvalue = $fvalue['url'];
+                            break;
+                        default:
+                            $fvalue = \var_export($fvalue, 1);
+                    }
+                }
+                $formatted = '';
+                if (!empty($fkey)) {
+                    $formatted = \sprintf('<b>%s:</b> %s', $fkey, $fvalue);
+                } elseif (!empty($fvalue)) {
+                    $formatted = \sprintf('%s', $fvalue);
+                }
+                $fields .= $formatted . $line_break;
+            }
+            $text = \str_replace($all_fields_shortcode, $fields, $text);
+        }
+        return $text;
+    }
+    public static function replace_author_tokens($text)
+    {
+        $parts = \explode('[author', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    $metaParamsAuthor = $metaParams . '|' . 'author';
+                    $text = \str_replace('[author' . $metaParams . ']', '[author' . $metaParamsAuthor . ']', $text);
+                }
+            }
+            $text = \str_replace('[author', '[user', $text);
+            $text = self::replace_user_tokens($text);
+        }
+        return $text;
+    }
+    public static function replace_user_tokens($text)
+    {
+        $text = \str_replace('[user]', '[user:display_name]', $text);
+        $text = \str_replace('[user|', '[user:ID|', $text);
+        // user field
+        $parts = \explode('[user:', $text);
+        if (\count($parts) > 1) {
+            $current_user_id = get_current_user_id();
+            $user_id = $current_user_id;
+            foreach ($parts as $dce_key => $avalue) {
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $single = null;
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        $real_filters = [];
+                        foreach ($filtersTmp as $afilter) {
+                            if (\is_numeric($afilter) && \intval($afilter) > 0) {
+                                return '';
+                            } elseif ($afilter === 'author') {
+                                $user_id = get_the_author_meta('ID');
+                            } elseif ($afilter === 'single') {
+                                $single = \true;
+                            } elseif ($afilter === 'multiple') {
+                                $single = \false;
+                            } else {
+                                $real_filters[] = $afilter;
+                            }
+                        }
+                    }
+                    $metaName = \reset($other_parts);
+                    $metaKey = \explode(':', $metaName);
+                    $field = \array_shift($metaKey);
+                    $metaValue = \DynamicContentForElementor\Helper::get_user_value($user_id, $field, $single);
+                    $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \implode('|', $real_filters), $user_id, $field);
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[user:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_post_tokens($text)
+    {
+        if (\DynamicContentForElementor\Helper::is_plugin_active('jet-engine')) {
+            $text = \str_replace('[jet:', '[post:', $text);
+        }
+        if (\DynamicContentForElementor\Helper::is_plugin_active('metabox')) {
+            $text = \str_replace('[metabox:', '[post:', $text);
+        }
+        $text = \str_replace('[post]', '[post:post_title]', $text);
+        $text = \str_replace('[post|', '[post:ID|', $text);
+        // post field
+        $parts = \explode('[post:', $text);
+        if (\count($parts) > 1) {
+            $current_post_id = $post_id = get_the_ID();
+            $current_post = get_post();
+            if ($current_post) {
+                $current_post_id = $post_id = $current_post->ID;
+            }
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $single = null;
+                    $other_parts = \explode('|', $temp_part, 2);
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        foreach ($filtersTmp as $afilter) {
+                            if (\is_numeric($afilter) && \intval($afilter) > 0) {
+                                if (!is_post_publicly_viewable(\intval($afilter)) && apply_filters('dynamicooo/tokens/disable-all-external-posts', \true)) {
+                                    return '';
+                                }
+                                $post_id = \intval($afilter);
+                            }
+                            if ($afilter == 'single') {
+                                $single = \true;
+                            }
+                            if ($afilter == 'multiple') {
+                                $single = \false;
+                            }
+                        }
+                    }
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $field = \array_shift($metaKey);
+                    $metaValue = '';
+                    if ($post_id) {
+                        if ($field == 'type' && !empty($metaKey)) {
+                            $metaValue = get_post_type_object(get_post_type(get_post($post_id)));
+                        } else {
+                            $metaValue = \DynamicContentForElementor\Helper::get_post_value($post_id, $field, $metaKey, $single);
+                        }
+                    }
+                    $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts), $post_id, $field);
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[post:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_product_tokens($text)
+    {
+        if (!\DynamicContentForElementor\Helper::is_plugin_active('woocommerce')) {
+            return $text;
+        }
+        global $product;
+        $parts = \explode('[product:', $text);
+        if (\count($parts) > 1) {
+            $current_post_id = $post_id = get_the_ID();
+            $current_post = \wc_get_product();
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $single = null;
+                    $other_parts = \explode('|', $temp_part, 2);
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        foreach ($filtersTmp as $afilter) {
+                            if (\is_numeric($afilter) && \intval($afilter) > 0) {
+                                if (!is_post_publicly_viewable(\intval($afilter)) && apply_filters('dynamicooo/tokens/disable-all-external-posts', \true)) {
+                                    return '';
+                                }
+                                $post_id = \intval($afilter);
+                            }
+                            if ($afilter == 'single') {
+                                $single = \true;
+                            }
+                            if ($afilter == 'multiple') {
+                                $single = \false;
+                            }
+                        }
+                    }
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $field = \array_shift($metaKey);
+                    $metaValue = '';
+                    if ($post_id) {
+                        switch ($field) {
+                            case 'variation_attributes':
+                                if (\is_object($current_post) && \get_class($current_post) == 'WC_Product_Variable') {
+                                    $metaValue = $current_post->get_variation_attributes();
+                                    break;
+                                }
+                            default:
+                                $metaValue = \DynamicContentForElementor\Helper::get_post_value($post_id, $field, '', $single);
+                        }
+                    }
+                    $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts), $post_id, $field);
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[product:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_acf_tokens($text)
+    {
+        if (!\DynamicContentForElementor\Helper::is_plugin_active('acf') && !\DynamicContentForElementor\Helper::is_plugin_active('acf-pro')) {
+            return $text;
+        }
+        $post_id = null;
+        // acf repeater field
+        $parts = \explode('[acf:', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        foreach ($filtersTmp as $afilter) {
+                            if (\is_numeric($afilter) && \intval($afilter) > 0) {
+                                if (!is_post_publicly_viewable(\intval($afilter)) && apply_filters('dynamicooo/tokens/disable-all-external-posts', \true)) {
+                                    return '';
+                                }
+                                $post_id = \intval($afilter);
+                            }
+                        }
+                    }
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $field = \array_shift($metaKey);
+                    $metaValue = \DynamicContentForElementor\Helper::get_acf_field_value($field, $post_id);
+                    if (!empty($metaKey)) {
+                        // check for settings
+                        if (\reset($metaKey) == 'settings') {
+                            \array_shift($metaKey);
+                            $metaValue = \DynamicContentForElementor\Helper::get_acf_field_settings($field);
+                        }
+                        // check if post field
+                        $field_key = \reset($metaKey);
+                        if (\substr($field_key, 0, 5) != 'post_') {
+                            $field_key = 'post_' . $field_key;
+                        }
+                        $post_fields = \DynamicContentForElementor\Helper::get_post_fields();
+                        if (isset($post_fields[$field_key])) {
+                            $metaValue = \DynamicContentForElementor\Helper::get_acf_field_post($field);
+                            $metaKey[0] = $field_key;
+                        }
+                    }
+                    $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts), $post_id, $field);
+                    }
+                    if (self::$data && !empty($replaceValue)) {
+                        return $replaceValue;
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[acf:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_system_tokens($text)
+    {
+        $parts = \explode('[system:', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $metaKeyName = \array_shift($metaKey);
+                    $metaValue = array();
+                    switch ($metaKeyName) {
+                        case 'get':
+                        case '_get':
+                        case '_GET':
+                            $metaValue = $_GET;
+                            break;
+                        case 'post':
+                        case '_post':
+                        case '_POST':
+                            $metaValue = $_POST;
+                            break;
+                        case 'cookie':
+                        case '_cookie':
+                        case '_COOKIE':
+                            $metaValue = $_COOKIE;
+                            break;
+                        case 'session':
+                        case '_session':
+                        case '_SESSION':
+                            $metaValue = $_SESSION;
+                            $metaKey = \DynamicContentForElementor\Helper::validate_session_key($metaKey[0]);
+                            break;
+                        case 'server':
+                        case '_server':
+                        case '_SERVER':
+                            $metaValue = $_SERVER;
+                            $metaKey = \DynamicContentForElementor\Helper::validate_server_key($metaKey[0]);
+                            break;
+                        default:
+                            break;
+                    }
+                    $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts));
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[system:' . $metaParams . ']', esc_html((string) $replaceValue), $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_wp_query_tokens($text)
+    {
+        $parts = \explode('[wp_query:', $text);
+        if (\count($parts) > 1) {
+            global $wp_query;
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $metaValue = $wp_query;
+                    switch (\reset($metaKey)) {
+                        case 'referer':
+                            $replaceValue = wp_get_referer();
+                            break;
+                        default:
+                            $replaceValue = self::check_array_value($metaValue, $metaKey);
+                    }
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts));
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[wp_query:' . $metaParams . ']', esc_html((string) $replaceValue), $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_query_tokens($text)
+    {
+        $parts = \explode('[query:', $text);
+        if (\count($parts) > 1) {
+            global $wpdb;
+            $cpt = \DynamicContentForElementor\Helper::get_public_post_types();
+            $cpt['attachment'] = 'Media';
+            $taxonomies = \DynamicContentForElementor\Helper::get_taxonomies();
+            $roles = \DynamicContentForElementor\Helper::get_roles();
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $metaName = \reset($other_parts);
+                    $objects = $field = \false;
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    if (!empty($metaKey)) {
+                        if ($metaKey[0]) {
+                            $args = array();
+                            switch ($metaKey[0]) {
+                                case 'user':
+                                    $type = 'user';
+                                    $role = '';
+                                    // any
+                                    // user query
+                                    if (isset($metaKey[1])) {
+                                        if (isset($roles[$metaKey[1]])) {
+                                            $role = $metaKey[1];
+                                            if (isset($metaKey[2])) {
+                                                $field = $metaKey[2];
+                                            }
+                                        } else {
+                                            $field = $metaKey[1];
+                                        }
+                                    }
+                                    $args = array('role' => $role);
+                                    $query = new \WP_User_Query($args);
+                                    $objects = $query->get_results();
+                                    break;
+                                case 'term':
+                                    $type = 'term';
+                                    $tax = 'category';
+                                    // term query
+                                    if (isset($metaKey[1])) {
+                                        if (isset($taxonomies[$metaKey[1]])) {
+                                            $tax = $metaKey[1];
+                                            if (isset($metaKey[2])) {
+                                                $field = $metaKey[2];
+                                            }
+                                        } else {
+                                            $field = $metaKey[1];
+                                        }
+                                    }
+                                    $args = array('count' => \true, 'taxonomy' => $tax, 'hide_empty' => \false);
+                                    $query = new \WP_Term_Query($args);
+                                    $objects = $query->get_terms();
+                                    break;
+                                default:
+                                    $pt = $type = 'post';
+                                    $tax = '';
+                                    // post query
+                                    if (isset($cpt[$metaKey[0]])) {
+                                        $pt = $metaKey[0];
+                                    }
+                                    if (isset($metaKey[1])) {
+                                        $term = \DynamicContentForElementor\Helper::get_term($metaKey[1]);
+                                        if ($term) {
+                                            $tax = $term->taxonomy;
+                                            if (isset($metaKey[2])) {
+                                                $field = $metaKey[2];
+                                            }
+                                        } elseif (isset($taxonomies[$metaKey[1]])) {
+                                            if (isset($metaKey[2])) {
+                                                $field = $metaKey[2];
+                                            }
+                                        } else {
+                                            $field = $metaKey[1];
+                                        }
+                                    }
+                                    switch ($pt) {
+                                        case 'attachment':
+                                            $args = array('post_type' => 'attachment', 'post_status' => 'inherit', 'nopaging' => \true);
+                                            break;
+                                        default:
+                                            $pt = \DynamicContentForElementor\Helper::validate_post_types($pt);
+                                            if (!$pt) {
+                                                return '';
+                                            }
+                                            $args = array('post_type' => $pt, 'post_status' => 'publish', 'nopaging' => \true);
+                                    }
+                                    if ($tax) {
+                                        switch ($tax) {
+                                            case 'category':
+                                                $args['category_name'] = $term->slug;
+                                                break;
+                                            case 'post_tag':
+                                                $args['tag'] = $term->slug;
+                                                break;
+                                            default:
+                                                $args['tax_query'] = array(array('taxonomy' => $tax, 'field' => 'slug', 'terms' => $term->slug));
+                                        }
+                                    } elseif (isset($metaKey[1])) {
+                                        if (isset($taxonomies[$metaKey[1]])) {
+                                            $tax = $metaKey[1];
+                                            $terms = get_terms($tax);
+                                            if (!empty($terms)) {
+                                                $terms_by_id = array();
+                                                foreach ($terms as $term) {
+                                                    $terms_by_id[$term->term_id] = $term;
+                                                }
+                                                $terms_ids = \array_keys($terms_by_id);
+                                                switch ($tax) {
+                                                    case 'category':
+                                                        $args['category__in'] = $terms_ids;
+                                                        break;
+                                                    case 'post_tag':
+                                                        $args['tag__in'] = $terms_ids;
+                                                        break;
+                                                    default:
+                                                        $args['tax_query'] = array(array('taxonomy' => $tax, 'field' => 'term_id', 'terms' => $terms_ids));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    $query = new \WP_Query($args);
+                                    $objects = $query->get_posts();
+                            }
+                        }
+                    }
+                    $replaceValue = '';
+                    if (!empty($objects)) {
+                        if ($field) {
+                            $tmp = array();
+                            $get_value_fnc = 'get_' . $type . '_value';
+                            foreach ($objects as $aobj) {
+                                if ($type == 'term') {
+                                    $obj_id = $aobj->term_id;
+                                } else {
+                                    $obj_id = $aobj->ID;
+                                }
+                                $value = \DynamicContentForElementor\Helper::$get_value_fnc($obj_id, $field);
+                                // @phpstan-ignore-line
+                                if (!empty($value)) {
+                                    $tmp[$obj_id] = $value;
+                                }
+                            }
+                            $objects = $tmp;
+                        }
+                        $replaceValue = $objects;
+                    }
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts));
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[query:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_var_tokens($text, $var_name, $var_value)
+    {
+        $var_value_original = $var_value;
+        if (\is_object($var_value)) {
+            $var_value = \get_object_vars($var_value);
+        } else {
+            $var_value = is_serialized($var_value) ? @\unserialize(\trim($var_value), ['allowed_classes' => \false]) : $var_value;
+        }
+        // simple var field
+        $text = \str_replace('[' . $var_name . ']', \DynamicContentForElementor\Helper::to_readable_string($var_value), $text);
+        $parts = \explode('[' . $var_name, $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    $subfield = '';
+                    if (\substr($metaParams, 0, 1) == ':') {
+                        if (\is_object($var_value_original)) {
+                            switch (\get_class($var_value_original)) {
+                                case 'WP_User':
+                                    if ($var_name == 'user' || $var_name == 'object') {
+                                        $text = \str_replace('[' . $var_name . $metaParams . ']', '[user' . $metaParams . ']', $text);
+                                        return self::replace_user_tokens($text);
+                                    }
+                                    break;
+                                case 'WP_Post':
+                                    if ($var_name == 'post' || $var_name == 'object') {
+                                        $text = \str_replace('[' . $var_name . $metaParams . ']', '[post' . $metaParams . ']', $text);
+                                        return self::replace_post_tokens($text);
+                                    }
+                                    break;
+                                case 'WP_Term':
+                                    if ($var_name == 'term' || $var_name == 'object') {
+                                        $text = \str_replace('[' . $var_name . $metaParams . ']', '[term' . $metaParams . ']', $text);
+                                        return self::replace_term_tokens($text);
+                                    }
+                                    break;
+                            }
+                        }
+                        $metaParams = \substr($metaParams, 1);
+                        $subfield = ':';
+                    }
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $post_id = get_the_ID();
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        if (\is_numeric(\reset($filtersTmp)) && \intval(\reset($filtersTmp)) > 0) {
+                            if (!is_post_publicly_viewable(\intval(\reset($filtersTmp))) && apply_filters('dynamicooo/tokens/disable-all-external-posts', \true)) {
+                                return '';
+                            }
+                            $post_id = \reset($filtersTmp);
+                        }
+                    }
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $field = \reset($metaKey);
+                    $replaceValue = self::check_array_value($var_value, $metaKey);
+                    if (\count($other_parts) == 2) {
+                        // APPLY FILTERS
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts), $post_id, $field);
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[' . $var_name . $subfield . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_term_tokens($text)
+    {
+        $text = \str_replace('[term]', '[term:name]', $text);
+        $text = \str_replace('[term|', '[term:term_id|', $text);
+        $parts = \explode('[term:', $text);
+        if (\count($parts) > 1) {
+            $terms = array();
+            $queried_object = get_queried_object();
+            if ($queried_object) {
+                if (\get_class($queried_object) == 'WP_Term') {
+                    $terms = array($queried_object);
+                }
+                if (\get_class($queried_object) == 'WP_Post' || in_the_loop()) {
+                    $terms = \DynamicContentForElementor\Helper::get_post_terms(0, null, array(), array());
+                }
+            }
+            global $term;
+            if ($term) {
+                if (\is_object($term) && \get_class($term) == 'WP_Term') {
+                    $terms = array($term);
+                }
+            }
+            $taxonomies = \DynamicContentForElementor\Helper::get_taxonomies();
+            foreach ($parts as $dce_key => $avalue) {
+                $filters = array();
+                if ($dce_key) {
+                    $metaTmp = \explode(']', $avalue);
+                    $metaParams = \reset($metaTmp);
+                    // GET FALLBACK
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $tterms = $terms;
+                    $single = null;
+                    $other_parts = \explode('|', $temp_part, 2);
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                        foreach ($filtersTmp as $afilter) {
+                            if ($afilter == 'single') {
+                                $single = \true;
+                            }
+                            if ($afilter == 'multiple') {
+                                $single = \false;
+                            }
+                            if (\is_numeric($afilter) && \intval($afilter) > 0) {
+                                $term_id = $afilter;
+                                if ($term_id) {
+                                    $my_term = get_term_by('term_taxonomy_id', $term_id);
+                                    $tterms = array($my_term);
+                                }
+                            } elseif (isset($taxonomies[$afilter])) {
+                                // filter by taxonomy
+                                $terms_tmp = array();
+                                if (!empty($tterms)) {
+                                    foreach ($tterms as $aterm) {
+                                        if ($aterm->taxonomy == $afilter) {
+                                            $terms_tmp[] = $aterm;
+                                        }
+                                    }
+                                    $tterms = $terms_tmp;
+                                }
+                            } else {
+                                if ($afilter == 'first' || $afilter == 'reset') {
+                                    $tterms = array(\reset($tterms));
+                                }
+                                if ($afilter == 'last' || $afilter == 'end') {
+                                    $tterms = array(\end($tterms));
+                                }
+                            }
+                        }
+                    }
+                    $metaName = \reset($other_parts);
+                    // GET SUB ARRAY
+                    $metaKey = \explode(':', $metaName);
+                    $field = \array_shift($metaKey);
+                    $replaceValue = array();
+                    $tterms = \array_filter($tterms);
+                    if (!empty($tterms)) {
+                        foreach ($tterms as $dce_key => $aterm) {
+                            $metaValue = \DynamicContentForElementor\Helper::get_term_value($aterm, $field, $single);
+                            $metaValue = self::check_array_value($metaValue, $metaKey);
+                            if (\count($other_parts) == 2) {
+                                // APPLY FILTERS
+                                $metaValue = self::apply_filters($metaValue, \end($other_parts), $aterm->term_id, $field);
+                            }
+                            $replaceValue[] = $metaValue;
+                        }
+                    }
+                    $replaceValue = \array_filter($replaceValue);
+                    if (!empty($replaceValue)) {
+                        $replaceValue = \implode(', ', $replaceValue);
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[term:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    /**
+     * @param string $name
+     * @return mixed
+     */
+    public static function get_option_value($name)
+    {
+        $whitelist = apply_filters('dynamicooo/tokens/options-whitelist', self::OPTIONS_WHITELIST);
+        // Whitelist or JetEngine
+        if (($whitelist[$name] ?? \false) || \DynamicContentForElementor\Helper::is_plugin_active('jet-engine') && jet_engine()->options_pages->registered_pages[$name]) {
+            return get_option($name);
+        }
+        // ACF
+        if (\strpos($name, 'options_') === 0 && \DynamicContentForElementor\Helper::is_plugin_active('acf-pro')) {
+            $res = \get_field(\substr($name, 8), 'option');
+            if ($res !== null) {
+                return $res;
+            }
+        }
+        // Meta Box
+        if (\DynamicContentForElementor\Helper::is_plugin_active('metabox')) {
+            $all_meta_box_settings = rwmb_get_registry('field')->get_by_object_type('setting');
+            if (\array_key_exists($name, $all_meta_box_settings)) {
+                return get_option($name);
+            }
+        }
+    }
+    public static function replace_option_tokens($text)
+    {
+        $parts = \explode('[option:', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                if ($dce_key) {
+                    $part = \explode(']', $avalue);
+                    $metaParams = \reset($part);
+                    $more_parts = \explode('?', $metaParams, 2);
+                    $fallback = '';
+                    if (\count($more_parts) == 2) {
+                        $fallback = \end($more_parts);
+                    }
+                    $temp_part = \reset($more_parts);
+                    // GET FILTERS or ID
+                    $other_parts = \explode('|', $temp_part, 2);
+                    $optionParams = \explode(':', \reset($other_parts));
+                    $optionName = \array_shift($optionParams);
+                    $optionValue = self::get_option_value($optionName);
+                    $replaceValue = self::check_array_value($optionValue, $optionParams);
+                    if (\count($other_parts) == 2) {
+                        $replaceValue = self::apply_filters($replaceValue, \end($other_parts));
+                    }
+                    $replaceValue = self::value_or_fallback($replaceValue, $fallback);
+                    $text = \str_replace('[option:' . $metaParams . ']', $replaceValue, $text);
+                }
+            }
+        }
+        return $text;
+    }
+    public static function replace_date_tokens($text)
+    {
+        $text = \str_replace('[date]', '[date:now]', $text);
+        $text = \str_replace('[date|', '[date:now|', $text);
+        // /wp-admin/options.php
+        $parts = \explode('[date:', $text);
+        if (\count($parts) > 1) {
+            foreach ($parts as $dce_key => $avalue) {
+                if ($dce_key) {
+                    $part = \explode(']', $avalue);
+                    $metaParams = \reset($part);
+                    $other_parts = \explode('|', $metaParams, 2);
+                    $filtersTmp = array();
+                    if (\count($other_parts) == 2) {
+                        $filtersTmp = \explode('|', \end($other_parts));
+                    }
+                    // GET TIMESTAMP
+                    $timestamp = '';
+                    // date format
+                    $dateFormat = get_option('date_format');
+                    if (!empty($filtersTmp)) {
+                        $f = $filtersTmp[0];
+                        if ($f && !\is_callable($f) && $f != 'IT') {
+                            $dateFormat = $f;
+                            \array_shift($filtersTmp);
+                        }
+                    }
+                    $temp_part = \reset($other_parts);
+                    $dateParams = \explode(':', $temp_part);
+                    $altTime = \reset($dateParams);
+                    if ($altTime == 'post' || $altTime == 'user') {
+                        // from post field
+                        $lastParam = \end($dateParams);
+                        $timeMod = \false;
+                        if (\in_array(\substr(\trim($lastParam), 0, 1), array('-', '+'))) {
+                            $timeMod = \array_pop($dateParams);
+                            $temp_part = \implode(':', $dateParams);
+                        }
+                        $altTime = self::do_tokens('[' . $temp_part . ']');
+                        $altTime = \strtotime($altTime);
+                        if ($timeMod) {
+                            $altTime = \strtotime($timeMod, $altTime);
+                        }
+                    }
+                    if (\is_numeric($altTime)) {
+                        $timestamp = $altTime;
+                    } else {
+                        $timestamp = \strtotime($temp_part);
+                    }
+                    $replaceValue = date_i18n($dateFormat, $timestamp);
+                    // translate
+                    if (!empty($filtersTmp)) {
+                        $replaceValue = self::apply_filters($replaceValue, $filtersTmp);
+                    }
+                    $text = \str_replace('[date:' . $metaParams . ']', $replaceValue, $text);
+                    // custom date
+                }
+            }
+        }
+        return $text;
+    }
+    // This function does more things its name would suggest:
+    // It replaces $replacevalue with the dce helper 'to_string' method
+    // fallbacks only if not in editor mode.
+    // if $replaceValue is a list of posts, $replaceValue becomes a list of post IDs
+    public static function value_or_fallback($replaceValue, $fallback = '')
+    {
+        if (\is_array($replaceValue)) {
+            $post_ids = array();
+            if (\is_array(\reset($replaceValue))) {
+                $first = \reset($replaceValue);
+                if (isset($first['ID'])) {
+                    foreach ($replaceValue as $apost) {
+                        if (isset($apost['ID'])) {
+                            $post_ids[] = $apost['ID'];
+                        }
+                    }
+                    $replaceValue = $post_ids;
+                }
+            }
+        }
+        $replaceValue = \DynamicContentForElementor\Helper::to_readable_string($replaceValue);
+        if (!\Elementor\Plugin::$instance->editor->is_edit_mode()) {
+            // Those <pre> checks are probably useless
+            if ($replaceValue == '' || \substr($replaceValue, 0, 12) == '<pre>array (' || \substr($replaceValue, 0, 12) == '<pre>object(') {
+                $replaceValue = $fallback;
+            }
+        }
+        return $replaceValue;
+    }
+    /**
+     * $optionValue is an array or an object. $optionParams is an array or a
+     * string.  in case $optionValue is an array returns
+     * $optionValue[$optionParams[0]][$optionParams[1]][...]
+     * if one of $optionParams is 'permalink', it gets the permalink.
+     * Todo: Document the case $optionValue is an object.
+     */
+    public static function check_array_value($optionValue = array(), $optionParams = array())
+    {
+        if (!\is_array($optionParams)) {
+            $optionParams = array($optionParams);
+        }
+        $val = $optionValue;
+        if (!empty($optionParams)) {
+            foreach ($optionParams as $dce_key => $value) {
+                if (\is_array($val)) {
+                    if ($value == 'permalink') {
+                        $val = \DynamicContentForElementor\Helper::get_permalink($val);
+                    } elseif (\array_key_exists($value, $val) || isset($val[$value])) {
+                        $val = $val[$value];
+                    } else {
+                        return \false;
+                    }
+                } elseif (\is_object($val)) {
+                    $val_class = \get_class($val);
+                    $tmp = \explode('(', $value);
+                    $params = null;
+                    if (\count($tmp) > 1) {
+                        $value = \reset($tmp);
+                        $params = \end($tmp);
+                        if (\substr($params, -1) == ')') {
+                            $params = \trim(\substr($params, 0, \strlen($params) - 1));
+                        }
+                    }
+                    if ($value == 'permalink') {
+                        return \DynamicContentForElementor\Helper::get_permalink($val);
+                    } elseif (\property_exists($val, $value)) {
+                        $val = $val->{$value};
+                    } elseif (\method_exists($val, $value)) {
+                        $method_checker = new \ReflectionMethod($val_class, $value);
+                        if ($method_checker->isStatic()) {
+                            if ($params) {
+                                $val = $val::$value($params);
+                                // @phpstan-ignore-line
+                            } else {
+                                $val = $val::$value();
+                                // @phpstan-ignore-line
+                            }
+                        } elseif ($params) {
+                            $val = $val->{$value}($params);
+                        } else {
+                            $val = $val->{$value}();
+                        }
+                    } else {
+                        return \false;
+                    }
+                }
+            }
+        }
+        return $val;
+    }
+    public static function remove_quote($parameters = array())
+    {
+        if (!empty($parameters)) {
+            foreach ($parameters as $pkey => $pvalue) {
+                if (\substr($pvalue, 0, 1) == '"' && \substr($pvalue, -1) == '"' || \substr($pvalue, 0, 1) == "'" && \substr($pvalue, -1) == "'") {
+                    $parameters[$pkey] = \substr($pvalue, 1, -1);
+                    // remove quote
+                }
+                if (\substr($pvalue, 0, 1) == '"' && \substr($pvalue, -1) != '"' || \substr($pvalue, 0, 1) == "'" && \substr($pvalue, -1) != "'") {
+                    $parameters[$pkey] = \substr($pvalue, 1);
+                    // remove quote
+                }
+            }
+        }
+        return $parameters;
+    }
+    public static function fix_filters_whitelist()
+    {
+        $option = get_option('dce_tokens_filters_whitelist');
+        $option = \implode("\n", \array_keys($option));
+        update_option('dce_tokens_filters_whitelist', $option);
+        return $option;
+    }
+    /**
+     * @return array<string, bool>
+     */
+    public static function get_filters_whitelist()
+    {
+        if (self::$filters_whitelist === null) {
+            $option = get_option('dce_tokens_filters_whitelist');
+            $wl = [];
+            if (\is_array($option)) {
+                $option = self::fix_filters_whitelist();
+            }
+            if (\is_string($option)) {
+                $list = \explode("\n", $option);
+                foreach ($list as $f) {
+                    $wl[\trim($f)] = \true;
+                }
+            }
+            self::$filters_whitelist = $wl + self::DEFAULT_FILTERS_WHITELIST;
+        }
+        return self::$filters_whitelist;
+    }
+    /**
+     * @param string $filter
+     * @return bool
+     */
+    public static function is_filter_safe($filter)
+    {
+        $wl = self::get_filters_whitelist();
+        return $wl[$filter] ?? \false;
+    }
+    public static function filter_error_message($filter, $parameters, $e)
+    {
+        if (current_user_can('manage_options')) {
+            // translators: 1: filter name, 2: filter parameters, 3: error message
+            $fmt = esc_html__('There was an error while calling the token filter `%1$s`, with parameters `%2$s`, the error was: %3$s', 'dynamic-content-for-elementor');
+            return \sprintf("[{$fmt}]", wp_kses_post($filter), wp_kses_post(\var_export($parameters, 1)), $e->getMessage());
+        } else {
+            return '';
+        }
+    }
+    public static function apply_filters($replaceValue = \false, $filtersStr = '', $post_id = 0, $field = '')
+    {
+        $post_id = $post_id ? $post_id : get_the_ID();
+        if (\is_array($filtersStr)) {
+            $filtersStr = \implode('|', $filtersStr);
+        }
+        $parser = new \DynamicContentForElementor\FiltersParser($filtersStr);
+        $filters = $parser->parse();
+        // Apply Filters
+        if (!empty($filters)) {
+            foreach ($filters as $flt) {
+                $afilter = $flt[0];
+                $parameters = $flt[1];
+                if ($afilter == 'concatenate' || $afilter == 'concat') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = self::concatenate($replaceValue, $string2, \count($parameters) > 1);
+                    continue;
+                }
+                if ($afilter == 'add' || $afilter == 'sum') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \floatval($replaceValue) + \floatval($string2);
+                    continue;
+                }
+                if ($afilter == 'multiply') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \floatval($replaceValue) * \floatval($string2);
+                    continue;
+                }
+                if ($afilter == 'divide') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \floatval($replaceValue) / \floatval($string2);
+                    continue;
+                }
+                if ($afilter == 'mod' || $afilter == 'modulo') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \floatval($replaceValue) % \floatval($string2);
+                    continue;
+                }
+                if ($afilter == 'exp' || $afilter == 'exponentiation') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \floatval($replaceValue) ** \floatval($string2);
+                    continue;
+                }
+                if ($afilter == 'rand' || $afilter == 'random') {
+                    if (\is_array($replaceValue) && !empty($replaceValue)) {
+                        $replaceValue = $replaceValue[\array_rand($replaceValue)];
+                    }
+                    continue;
+                }
+                if ($afilter == 'opts' || $afilter == 'options') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \DynamicContentForElementor\Helper::array_options($replaceValue, $string2);
+                    continue;
+                }
+                if ($afilter == 'value' || $afilter == 'field_value') {
+                    $string2 = \reset($parameters);
+                    $replaceValue = \DynamicContentForElementor\Helper::form_field_value($replaceValue, $string2);
+                    continue;
+                }
+                if ($afilter == 'posts') {
+                    $term_id = null;
+                    if ($post_id) {
+                        $term_id = $post_id;
+                    }
+                    if (\is_numeric($replaceValue)) {
+                        $term_id = \intval($replaceValue);
+                    }
+                    if (\is_array($replaceValue) && isset($replaceValue['term_id'])) {
+                        $term_id = $replaceValue['term_id'];
+                    }
+                    if (\is_object($replaceValue) && \get_class($replaceValue) == 'WP_Term') {
+                        $term_id = $replaceValue->term_id;
+                    }
+                    if ($term_id) {
+                        $replaceValue = \DynamicContentForElementor\Helper::get_term_posts($term_id);
+                    } else {
+                        $replaceValue = \false;
+                    }
+                    continue;
+                }
+                // THUMB Custom Size
+                if (\in_array($field, array('thumbnail', 'post_thumbnail', 'thumb'))) {
+                    $post_thumbnail_id = get_post_thumbnail_id($post_id);
+                    if (\strpos($afilter, 'x') !== \false) {
+                        list($h, $w) = \explode('x', $afilter, 2);
+                        if (\is_numeric($h) && \is_numeric($w)) {
+                            $replaceValueThumb = wp_get_attachment_image_src($post_thumbnail_id, array($w, $h));
+                            if ($replaceValueThumb) {
+                                $replaceValue = \reset($replaceValueThumb);
+                            } else {
+                                $replaceValue = '';
+                            }
+                            continue;
+                        }
+                    }
+                    $replaceValueThumb = wp_get_attachment_image_src($post_thumbnail_id, $afilter);
+                    if ($replaceValueThumb) {
+                        $replaceValue = \reset($replaceValueThumb);
+                    } else {
+                        $replaceValue = '';
+                    }
+                    continue;
+                }
+                if ($afilter == 'gallery') {
+                    $ids = \DynamicContentForElementor\Helper::to_readable_string($replaceValue);
+                    $args = array('ids' => $ids);
+                    if (isset($parameters[0])) {
+                        $args['size'] = $parameters[0];
+                    }
+                    $replaceValue = gallery_shortcode($args);
+                    continue;
+                }
+                if (apply_filters('dce_tokens_filters_whitelist_force_disable', \false)) {
+                    if (isset(self::$filters_blacklist[$afilter])) {
+                        continue;
+                    }
+                } elseif (!self::is_filter_safe($afilter)) {
+                    $post_id = get_the_ID();
+                    \error_log('Dynamic.ooo non-whitelisted tokens filter found, post: ' . ($post_id ? $post_id : '') . ', filter: ' . $afilter);
+                    if (\Elementor\Plugin::$instance->editor->is_edit_mode() || current_user_can('administrator')) {
+                        /* translators: 1: filter name, 2: opening link tag for the whitelist settings page, 3: closing link tag, 4: plugin name */
+                        $fmt = esc_html__('Filter %1$s is not whitelisted, please add it to the %2$swhitelist%3$s, you can find it in WP Dashboard > %4$s > Features > Tokens', 'dynamic-content-for-elementor');
+                        $url = admin_url('admin.php?page=dce-features&tab=tokens');
+                        return \sprintf("[{$fmt}]", '<code>' . $afilter . '</code>', "<a target='_blank' href='{$url}'>", '</a>', DCE_PRODUCT_NAME);
+                    } else {
+                        continue;
+                    }
+                }
+                if ($afilter && \is_callable($afilter) && $replaceValue != '') {
+                    if (empty($parameters)) {
+                        try {
+                            $replaceValue = $afilter($replaceValue);
+                        } catch (\Throwable $e) {
+                            return self::filter_error_message($afilter, [$replaceValue], $e);
+                        }
+                    } else {
+                        if ($afilter == 'date') {
+                            $afilter = 'date_i18n';
+                        }
+                        if (\in_array($afilter, array('implode', 'explode', 'date', 'date_i18n', 'get_the_author_meta', 'str_replace', 'preg_replace'))) {
+                            // these functions require the value in the last position
+                            $parameters[] = $replaceValue;
+                        } else {
+                            \array_unshift($parameters, $replaceValue);
+                        }
+                        try {
+                            $replaceValue = \call_user_func_array($afilter, $parameters);
+                        } catch (\Throwable $e) {
+                            return self::filter_error_message($afilter, $parameters, $e);
+                        }
+                    }
+                }
+            }
+        }
+        return $replaceValue;
+    }
+    public static function user_to_author($txt)
+    {
+        return \str_replace('[user', '[author', $txt);
+    }
+    public static function concatenate($string1 = '', $string2 = '', $before = \false)
+    {
+        if ($before) {
+            return $string2 . $string1;
+        }
+        return $string1 . $string2;
+    }
+}

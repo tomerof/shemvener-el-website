@@ -1,0 +1,67 @@
+.elementor-widget-dce-add-to-favorites .elementor-align-counter-left{
+	order: 0;
+}
+.elementor-widget-dce-add-to-favorites .elementor-align-counter-right{
+	order: 100;
+}
+.elementor-widget-dce-add-to-favorites .elementor-button-icon i{
+	line-height: 0;
+	vertical-align: middle;
+}
+.elementor-widget-dce-add-to-favorites .elementor-button {
+    transition: all 0.2s ease-in-out;
+}
+
+.elementor-widget-dce-add-to-favorites .elementor-button-icon,
+.elementor-widget-dce-add-to-favorites .elementor-button-text {
+    transition: opacity 0.2s ease-in-out;
+}
+
+.elementor-button-counter {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    font-size: inherit;
+}
+
+.elementor-button-counter .elementor-button-icon {
+    font-size: inherit;
+    width: 1em;
+    height: 1em;
+    line-height: 1
+}
+
+.elementor-button-counter svg {
+    width: 1em;
+    height: 1em;
+}
+
+.dce-add-to-favorites-disabled {
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+.dce-add-to-favorites-disabled:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+}
+
+.elementor-widget-dce-add-to-favorites .elementor-button-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.elementor-widget-dce-add-to-favorites .elementor-button-content-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.elementor-widget-dce-add-to-favorites .elementor-button-text {
+    display: inline-flex;
+    align-items: center;
+}
+
+
+

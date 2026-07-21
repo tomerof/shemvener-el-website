@@ -1,0 +1,212 @@
+# Translation of Plugins - WP-Optimize – Cache, Compress images, Minify &amp; Clean database to boost page speed &amp; performance - Stable (latest release) in Hebrew
+# This file is distributed under the same license as the Plugins - WP-Optimize – Cache, Compress images, Minify &amp; Clean database to boost page speed &amp; performance - Stable (latest release) package.
+msgid ""
+msgstr ""
+"PO-Revision-Date: 2020-07-08 09:38:33+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: GlotPress/4.0.1\n"
+"Language: he_IL\n"
+"Project-Id-Version: Plugins - WP-Optimize – Cache, Compress images, Minify &amp; Clean database to boost page speed &amp; performance - Stable (latest release)\n"
+
+#: includes/class-wp-optimize-preloader.php:261
+msgid "Preloading posts found in sitemap:"
+msgstr "טעינה מוקדמת של פוסטים שנמצאו ב- Sitemap:"
+
+#: optimizations/orphandata.php:74
+msgid "Clean orphaned relationship data"
+msgstr "הסר שדות מטא יתומים של נתונים מיוחסים"
+
+#: optimizations/orphandata.php:47
+msgid "No orphaned relationship data in your database"
+msgstr "אין שדות מטא יתומים של נתונים מיוחסים בבסיס הנתונים"
+
+#: includes/class-wp-optimize-admin.php:45
+#: includes/class-wp-optimize-admin.php:67
+#: includes/class-wp-optimize-admin.php:76
+#: includes/class-wp-optimize-admin.php:794
+#: includes/class-wp-optimize-admin.php:795 templates/minify/status-tab.php:123
+#: templates/minify/status-tab.php:145 wp-optimize.php:1054
+msgid "Settings"
+msgstr "הגדרות"
+
+#: includes/class-wp-optimize-commands.php:1394
+#: templates/database/tables-body.php:61 templates/database/tables-body.php:70
+#: templates/database/tables.php:44
+msgid "Type"
+msgstr "סוג"
+
+#: templates/cache/gzip-compression.php:59
+#: templates/settings/settings-trackback-and-comments.php:17
+#: templates/settings/settings-trackback-and-comments.php:48
+#: wp-optimize.php:942
+msgid "Disable"
+msgstr "השבת"
+
+#: optimizations/revisions.php:248 optimizations/revisions.php:257
+msgid "Clean all post revisions"
+msgstr "ניקוי כל גרסאות הפוסטים"
+
+#: optimizations/unapproved.php:191 optimizations/unapproved.php:201
+msgid "Remove unapproved comments"
+msgstr "הסר תגובות לא מאושרות"
+
+#: optimizations/pingbacks.php:146
+msgid "Remove pingbacks"
+msgstr "הסר פינגבקים"
+
+#: optimizations/trackbacks.php:145
+msgid "Remove trackbacks"
+msgstr "הסר טראקבקים"
+
+#: templates/database/tables-body.php:76 templates/database/tables-body.php:100
+#: templates/database/tables.php:46 templates/settings/settings-logging.php:25
+msgid "Actions"
+msgstr "פעולות"
+
+#: optimizations/optimizetables.php:189 optimizations/optimizetables.php:198
+msgid "Optimize database tables"
+msgstr "בצע אופטימיזציה לטבלאות בסיס הנתונים"
+
+#: templates/database/optimize-table.php:60
+msgid "Warning:"
+msgstr "אזהרה:"
+
+#: templates/database/status-box-contents.php:60
+msgid "Not keeping recent data"
+msgstr "מידע אחרון לא נשמר"
+
+#: templates/database/settings-general.php:3
+#: templates/settings/settings-general.php:3
+msgid "General settings"
+msgstr "הגדות כלליות"
+
+#: templates/database/settings-auto-cleanup.php:21
+msgid "Select schedule type (default is Weekly)"
+msgstr "בחר את סוג התזמון (ברירת מחדל - שבועי)"
+
+#: optimizations/inactive-tags.php:26
+msgid "Remove unused tags"
+msgstr "הסר תגיות ללא שימוש"
+
+#: templates/database/tables.php:13
+msgid "Optimized all the tables found in the database."
+msgstr "בוצעה אופטימיזציה לכל הטבלאות שנמצאו בבסיס הנתונים"
+
+#: includes/class-wp-optimize-commands.php:1389
+#: templates/database/tables-body.php:13 templates/database/tables.php:39
+msgid "No."
+msgstr "מס'"
+
+#: includes/class-wp-optimize-commands.php:1391
+#: templates/database/tables-body.php:56 templates/database/tables.php:41
+msgid "Records"
+msgstr "רשומות"
+
+#: includes/class-wp-optimize-commands.php:1392
+#: templates/database/tables-body.php:57 templates/database/tables.php:42
+msgid "Data Size"
+msgstr "נפח מידע"
+
+#: includes/class-wp-optimize-commands.php:1393
+#: templates/database/tables-body.php:58 templates/database/tables.php:43
+msgid "Index Size"
+msgstr "נפח אינדקס"
+
+#: includes/class-wp-optimize-commands.php:1395
+#: templates/database/tables-body.php:63 templates/database/tables-body.php:71
+#: templates/database/tables.php:45
+msgid "Overhead"
+msgstr "תקורה"
+
+#: templates/database/tables-body.php:85
+msgid "Total:"
+msgstr "סה\"כ"
+
+#: optimizations/transient.php:164 optimizations/transient.php:400
+msgid "No transient options found"
+msgstr "לא נמצאו אפשרויות זמניות"
+
+#: optimizations/revisions.php:73 optimizations/revisions.php:171
+msgid "No post revisions found"
+msgstr "לא נמצאו גרסאות פוסטים"
+
+#: optimizations/autodraft.php:77 optimizations/autodraft.php:132
+msgid "No auto draft posts found"
+msgstr "לא נמצאו טיוטות פוסטים אוטומטיות"
+
+#: optimizations/spam.php:188 optimizations/spam.php:202
+msgid "Review"
+msgstr "סקירה"
+
+#: optimizations/spam.php:192
+msgid "No spam comments found"
+msgstr "לא נמצאו תגובות זבל"
+
+#: optimizations/unapproved.php:94 optimizations/unapproved.php:150
+msgid "No unapproved comments found"
+msgstr "לא נמצאו תגובות לא מאושרות"
+
+#: optimizations/pingbacks.php:62 optimizations/pingbacks.php:119
+msgid "No pingbacks found"
+msgstr "לא נמצאו פינגבקים"
+
+#: optimizations/trackbacks.php:63 optimizations/trackbacks.php:121
+msgid "No trackbacks found"
+msgstr "לא נמצאו טראקבקים"
+
+#: templates/database/status-box-contents.php:42
+msgid "Refresh"
+msgstr "לרענן"
+
+#. translators: %d is revisions retention period in weeks
+#: optimizations/revisions.php:240
+msgid "Clean post revisions which are older than %d weeks"
+msgstr "ניקוי גרסאות ישנות מלפני %d שבועות"
+
+#. translators: %d is the number of weeks
+#: optimizations/unapproved.php:189
+msgid "Remove unapproved comments which are older than %d weeks"
+msgstr "הסרת תגובות לא מאושרות מלפני %d שבועות"
+
+#: templates/database/status-box-contents.php:37
+msgid "Next schedule:"
+msgstr "התזמון הבא:"
+
+#: templates/database/tables-list-after.php:22
+msgid "Optimization results:"
+msgstr "תוצאות האופטימיזציה:"
+
+#: optimizations/postmeta.php:143
+msgid "Remove orphaned post meta"
+msgstr "הסר שדות מטא יתומים של פוסטים"
+
+#: includes/class-wp-optimize-commands.php:1390
+#: templates/database/tables-body.php:14 templates/database/tables.php:40
+msgid "Table"
+msgstr "טבלה"
+
+#: templates/database/tables-list-after.php:10
+msgid "Total size of database:"
+msgstr "גודל מסד-הנתונים:"
+
+#: templates/settings/settings-trackback-and-comments.php:3
+msgid "Trackback/comments actions"
+msgstr "פעולות על תגובות וטראקבקים"
+
+#: templates/cache/browser-cache.php:51 templates/cache/gzip-compression.php:59
+#: templates/settings/settings-trackback-and-comments.php:15
+#: templates/settings/settings-trackback-and-comments.php:46
+#: wp-optimize.php:941
+msgid "Enable"
+msgstr "הפעל"
+
+#: includes/class-wp-optimize-options.php:298
+msgid "Settings updated."
+msgstr "ההגדרות עודכנו."
+
+#: templates/database/tables.php:24
+msgid "Database name:"
+msgstr "שם מסד הנתונים:"

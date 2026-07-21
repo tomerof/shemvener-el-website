@@ -1,0 +1,32 @@
+.dce-flex .group-by-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.elementor-widget-dce-views .elementor-accordion .elementor-accordion-icon-closed {
+  display: inline-block;
+}
+
+.elementor-widget-dce-views .elementor-accordion .elementor-accordion-icon-opened {
+  display: none;
+}
+
+.elementor-widget-dce-views .elementor-accordion .elementor-active .elementor-accordion-icon-closed {
+  display: none;
+}
+
+.elementor-widget-dce-views .elementor-accordion .elementor-active .elementor-accordion-icon-opened {
+  display: inline-block;
+}
+
+.elementor-widget-dce-views .elementor-accordion .elementor-tab-content {
+  display: none;
+}
+
+.elementor-widget-dce-views .elementor-swiper-button-prev,
+.elementor-widget-dce-views .elementor-swiper-button-next {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

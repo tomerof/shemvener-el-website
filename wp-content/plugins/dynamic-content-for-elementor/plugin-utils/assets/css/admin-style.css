@@ -1,0 +1,237 @@
+.ooo-admin-header-wrap {
+  background: rgb(229, 38, 0);
+  margin: -10px -20px 10px -22px;
+  padding: 20px;
+}
+
+.ooo-admin-header {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.ooo-admin-header img.ooo-admin-logo {
+  max-height: 40px;
+  margin-right: 15px;
+}
+
+.ooo-license-wrapper {
+  max-width: 800px;
+  margin-top: 20px;
+}
+
+.ooo-license-wrapper .form-table th {
+  width: 200px;
+}
+
+.ooo-license-wrapper .error {
+  color: #dc3232;
+  font-style: italic;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+  .ooo-admin-header-wrap {
+    margin: -10px -12px 20px -12px;
+    padding: 15px;
+  }
+
+  .ooo-admin-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .ooo-admin-header img.ooo-admin-logo {
+    margin: 0 0 10px 0;
+  }
+
+  .ooo-license-wrapper .form-table th {
+    width: 100%;
+  }
+}
+
+/* License Page */
+.ooo-content-wrapper {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.ooo-license-tab {
+  width: 100%;
+  padding: 20px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.ooo-license-status {
+  font-size: 1.8em;
+  margin-bottom: 1em;
+}
+
+.ooo-status-active {
+  color: #46b450;
+}
+
+.ooo-status-inactive {
+  color: #dc3232;
+}
+
+.ooo-text-warning {
+  color: #f0ad4e;
+}
+
+.ooo-license-key {
+  display: flex;
+  align-items: center;
+  justify-content: start;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.ooo-license-key input[type="password"] {
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: 400px;
+}
+
+.ooo-license-key button {
+  white-space: nowrap;
+}
+
+.ooo-license-get-it-now {
+  margin-top: 30px;
+}
+
+.ooo-beta-section {
+  margin-top: 20px;
+  border-top: 1px solid #ccc;
+  padding-top: 20px;
+}
+
+.ooo-beta-form {
+  margin-top: 15px;
+}
+
+.ooo-beta-form label {
+  display: block;
+  margin-bottom: 15px;
+}
+
+.ooo-rollback-section {
+  margin-top: 20px;
+  border-top: 1px solid #ccc;
+  padding-top: 20px;
+}
+
+.ooo-rollback-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.ooo-rollback-form select {
+  min-width: 150px;
+}
+
+.ooo-rollback-form button {
+  white-space: nowrap;
+}
+
+.ooo-rollback-section .description {
+  color: #dc3232;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .ooo-license-key {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ooo-license-key input[type="password"],
+  .ooo-license-key button {
+    width: 100%;
+  }
+
+  .ooo-rollback-form {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ooo-rollback-form select,
+  .ooo-rollback-form button {
+    width: 100%;
+  }
+}
+
+.ooo-rollback-form {
+  position: relative;
+}
+
+/* Integration Sections */
+.ooo-integration-section {
+  margin-bottom: 30px;
+}
+
+.ooo-integration-section td > div {
+  margin-bottom: 15px;
+}
+
+.ooo-integration-section td label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.ooo-integration-section td input[type="text"],
+.ooo-integration-section td input[type="password"],
+.ooo-integration-section td select {
+  width: 100%;
+  max-width: 400px;
+}
+
+.ooo-integration-section td input[type="checkbox"] {
+  margin-right: 5px;
+}
+
+.ooo-integration-section td input[type="checkbox"] + label {
+  display: inline;
+  vertical-align: middle;
+}
+
+.ooo-integration-section .submit {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.ooo-integration-section .field-link {
+  margin-top: 10px;
+}
+
+.ooo-integration-section .description {
+  margin-top: 5px;
+  font-style: italic;
+}
+
+/* Notices */
+.ooo-notice img.ooo-logo {
+  width: 36px;
+  height: 36px;
+}
+body:not(.rtl) .ooo-notice img.ooo-logo {
+  float: left;
+  margin: 0 15px 0 0;
+}
+body.rtl .ooo-notice img.ooo-logo {
+  float: right;
+  margin: 0 0 0 15px;
+}
+.ooo-notice {
+  display: flex;
+  align-items: center;
+}

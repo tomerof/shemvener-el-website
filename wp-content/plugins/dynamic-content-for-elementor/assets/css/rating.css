@@ -1,0 +1,74 @@
+/* Force rating to be block level so it appears below the label */
+.elementor-field-type-dce_rating .dce-rating {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px; /* Default spacing, controlled via Icon Spacing style option */
+	line-height: 1;
+	width: 100%;
+}
+
+.elementor-field-type-dce_rating .dce-rating-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	font-size: 20px;
+	position: relative;
+	outline: none;
+}
+
+.elementor-field-type-dce_rating .dce-rating-icon:hover {
+	cursor: pointer;
+}
+
+/* Keyboard focus indicator (a11y) */
+.elementor-field-type-dce_rating .dce-rating-icon:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/* ========================================
+   Half-star effect implementation
+   ========================================
+   Creates a visual "half-filled" icon using a two-layer approach:
+   1. Base layer: full icon with inactive color (background)
+   2. Overlay layer: cloned icon with active color, clipped at 50% width
+
+   Works for both Font Icons (<i class="fas fa-star">) and SVG Icons (<svg>)
+   JavaScript pre-creates the overlay for performance optimization
+   ======================================== */
+
+/* Overlay layer: hidden by default, positioned for clipping effect */
+.elementor-field-type-dce_rating .dce-rating-icon .dce-rating-half-overlay {
+	display: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 50%;              /* Only 50% width = shows left half */
+	height: 100%;
+	overflow: hidden;        /* Clips the cloned icon at 50% */
+	pointer-events: none;    /* Allow clicks to pass through to base icon */
+}
+
+/* Half-active state: show overlay */
+.elementor-field-type-dce_rating .dce-rating-icon.is-half-active .dce-rating-half-overlay {
+	display: block;
+}
+
+/* SVG Icons Support */
+.elementor-field-type-dce_rating .dce-rating-icon svg {
+	display: inline-block;
+	vertical-align: middle;
+	width: 1em;
+	height: 1em;
+	font-size: inherit;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.elementor-field-type-dce_rating .dce-rating-icon {
+		font-size: 18px;
+	}
+}

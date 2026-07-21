@@ -1,0 +1,9 @@
+.dce-logo-search-and-filter-pro::before {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  mask: url("../img/logos/search-and-filter-pro.svg");
+  background-color: #353a41;
+  content: "";
+  vertical-align: middle;
+}

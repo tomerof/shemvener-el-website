@@ -1,0 +1,140 @@
+#fullscreen-effect {
+  top: 0;
+  left: 0;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+body.dce-fullview-open {
+  overflow: hidden; 
+  width: 100%; 
+  height: 100%;
+}
+
+.dce-gridtofullscreen3d-container .dce-gridtofullscreen3d-wrapper {
+  position: relative;
+}
+
+.dce-posts-container.dce-gridtofullscreen3d-container .dce-item_image {
+  position: relative;
+}
+
+.dce-gridtofullscreen3d-container .grid__item-img {
+  display: block;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.dce-gridtofullscreen3d-container .grid__item-img--large {
+  pointer-events: none;
+  position: fixed;
+  opacity: 0;
+}
+
+.dce-gridtofullscreen3d-container .fullview {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item {
+  pointer-events: none;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item--current {
+  pointer-events: auto;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item-title {
+  position: absolute;
+  font-size: 4rem;
+  font-weight: 400;
+  padding: 2rem;
+  line-height: 1;
+  color: #fff;
+  opacity: 0;
+  user-select: none;
+  width: 50%;
+}
+
+.dce-panel-position-left .dce-gridtofullscreen3d-container .fullview__item-title {
+  bottom: 0;
+  right: 0;
+}
+
+.dce-panel-position-right .dce-gridtofullscreen3d-container .fullview__item-title {
+  bottom: 0;
+  left: 0;
+}
+
+.dce-panel-position-top .dce-gridtofullscreen3d-container .fullview__item-title {
+  bottom: 0;
+  left: 0;
+  width: 100%;
+}
+
+.dce-panel-position-bottom .dce-gridtofullscreen3d-container .fullview__item-title {
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item-box {
+  position: absolute;
+  pointer-events: none;
+  overflow: auto;
+  background: #fff;
+}
+
+.dce-panel-position-left .dce-gridtofullscreen3d-container .fullview__item-box {
+  top: 0; left: 0;
+  width: 0%; height: 100%;
+}
+
+.dce-panel-position-right .dce-gridtofullscreen3d-container .fullview__item-box {
+  top: 0; right: 0;
+  width: 0%; height: 100%;
+}
+
+.dce-panel-position-top .dce-gridtofullscreen3d-container .fullview__item-box {
+  top: 0; left: 0;
+  width: 100%; height: 0%;
+}
+
+.dce-panel-position-bottom .dce-gridtofullscreen3d-container .fullview__item-box {
+  bottom: 0; left: 0;
+  width: 100%; height: 0%;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item--current .fullview__item-box {
+  pointer-events: auto;
+}
+
+.dce-gridtofullscreen3d-container .fullview__close {
+  position: fixed; 
+  top: 1rem; 
+  right: 1rem;
+  background: none; 
+  border: 0; 
+  cursor: pointer;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 10000;
+}
+
+.dce-gridtofullscreen3d-container .fullview__close:focus {
+  outline: none;
+}
+
+.dce-gridtofullscreen3d-container .fullview__close svg {
+  fill: #000;
+}
+
+.dce-gridtofullscreen3d-container .fullview__item--current ~ .fullview__close {
+  pointer-events: auto;
+}
